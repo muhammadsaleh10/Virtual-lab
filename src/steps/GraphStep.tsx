@@ -1,6 +1,5 @@
 import { useEffect, useMemo } from 'react'
 import type { Action } from '../lib/store'
-import { studentExtensionCm } from '../lib/store'
 import type { ExperimentState } from '../lib/types'
 import GraphPlot, { type Point } from '../components/GraphPlot'
 import { Callout } from '../components/ui'
@@ -10,13 +9,16 @@ interface Props {
   dispatch: React.Dispatch<Action>
 }
 
+/**
+ * The points as the student themselves plotted them: x is their own
+ * calculated extension, not a value recomputed on their behalf. If they got
+ * x = l - l0 wrong, that mistake is visible here too — exactly as it would
+ * be on graph paper.
+ */
 export function dataPointsFor(state: ExperimentState): Point[] {
   return state.readings
-    .map<Point | null>((r) => {
-      const x = studentExtensionCm(r, state.zeroReadingCm)
-      return x === null ? null : { x, y: r.forceN, label: `${r.massG} g` }
-    })
-    .filter((p): p is Point => p !== null)
+    .filter((r) => Number.isFinite(r.extensionCm))
+    .map((r) => ({ x: r.extensionCm, y: r.forceN, label: `${r.massG} g` }))
 }
 
 export default function GraphStep({ state, dispatch }: Props) {
@@ -69,6 +71,7 @@ export default function GraphStep({ state, dispatch }: Props) {
             points={points}
             bestFit={state.bestFit}
             onBestFitChange={(bestFit) => dispatch({ type: 'setBestFit', bestFit })}
+            height={440}
           />
         </div>
       </div>

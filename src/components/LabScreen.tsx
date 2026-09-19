@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Apparatus from './Apparatus'
+import TutorialStep from '../steps/TutorialStep'
 import SetupStep from '../steps/SetupStep'
 import MeasureStep from '../steps/MeasureStep'
 import GraphStep from '../steps/GraphStep'
@@ -29,6 +30,8 @@ interface Props {
 /** Which stages the student has done enough to move past. */
 function stageComplete(state: ExperimentState, stage: Stage): boolean {
   switch (stage) {
+    case 'tutorial':
+      return true
     case 'setup':
       return state.zeroReadingCm !== null
     case 'measure':
@@ -44,6 +47,8 @@ function stageComplete(state: ExperimentState, stage: Stage): boolean {
 
 function canEnter(state: ExperimentState, stage: Stage): boolean {
   switch (stage) {
+    case 'tutorial':
+      return true
     case 'setup':
       return true
     case 'measure':
@@ -63,7 +68,15 @@ export default function LabScreen({ state, dispatch, onReset, onExit }: Props) {
 
   const mass = totalMassG(state)
   const atMaxLoad = state.hangerAttached && mass >= MAX_TOTAL_MASS_G
+  const isTutorial = state.stage === 'tutorial'
   const stageIndex = STAGES.findIndex((s) => s.id === state.stage)
+
+  // The apparatus is the priority while setting up and measuring; the work
+  // panel becomes the priority once there is data to process and write about.
+  const focus =
+    state.stage === 'graph' || state.stage === 'analysis' || state.stage === 'feedback'
+      ? 'notebook'
+      : 'bench'
 
   // Start each stage at the top of the notebook rather than mid-scroll.
   useEffect(() => {
@@ -130,7 +143,7 @@ export default function LabScreen({ state, dispatch, onReset, onExit }: Props) {
         </div>
       </header>
 
-      <div className="lab-body">
+      <div className="lab-body" data-focus={focus}>
         {/* ---------------------------------------------------------- bench */}
         <section className="bench" aria-label="Laboratory bench">
           <div className="bench-badge">
@@ -229,29 +242,34 @@ export default function LabScreen({ state, dispatch, onReset, onExit }: Props) {
         {/* ------------------------------------------------------- notebook */}
         <aside className="notebook" aria-label="Laboratory notebook">
           <div className="notebook-head">
-            <nav className="stepper" aria-label="Experiment stages">
-              {STAGES.map((s, i) => {
-                const enabled = canEnter(state, s.id)
-                const done = i < stageIndex && stageComplete(state, s.id)
-                return (
-                  <button
-                    key={s.id}
-                    className={`step ${s.id === state.stage ? 'is-active' : ''} ${
-                      done ? 'is-done' : ''
-                    }`}
-                    disabled={!enabled}
-                    onClick={() => enabled && goTo(s.id)}
-                    aria-current={s.id === state.stage ? 'step' : undefined}
-                  >
-                    <span className="step-bar" />
-                    <span className="step-label">{s.label}</span>
-                  </button>
-                )
-              })}
-            </nav>
+            {isTutorial ? (
+              <div className="eyebrow">Before you begin</div>
+            ) : (
+              <nav className="stepper" aria-label="Experiment stages">
+                {STAGES.map((s, i) => {
+                  const enabled = canEnter(state, s.id)
+                  const done = i < stageIndex && stageComplete(state, s.id)
+                  return (
+                    <button
+                      key={s.id}
+                      className={`step ${s.id === state.stage ? 'is-active' : ''} ${
+                        done ? 'is-done' : ''
+                      }`}
+                      disabled={!enabled}
+                      onClick={() => enabled && goTo(s.id)}
+                      aria-current={s.id === state.stage ? 'step' : undefined}
+                    >
+                      <span className="step-bar" />
+                      <span className="step-label">{s.label}</span>
+                    </button>
+                  )
+                })}
+              </nav>
+            )}
           </div>
 
           <div className="notebook-scroll" ref={scrollRef}>
+            {isTutorial && <TutorialStep onFinish={() => goTo('setup')} />}
             {state.stage === 'setup' && <SetupStep state={state} dispatch={dispatch} />}
             {state.stage === 'measure' && <MeasureStep state={state} dispatch={dispatch} />}
             {state.stage === 'graph' && <GraphStep state={state} dispatch={dispatch} />}
@@ -260,7 +278,7 @@ export default function LabScreen({ state, dispatch, onReset, onExit }: Props) {
           </div>
 
           <div className="notebook-foot">
-            {state.stage === 'feedback' ? (
+            {isTutorial ? null : state.stage === 'feedback' ? (
               <>
                 <button
                   className="btn btn-secondary"

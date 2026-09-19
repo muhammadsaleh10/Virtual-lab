@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Action } from '../lib/store'
-import { studentExtensionCm } from '../lib/store'
 import type { ExperimentState } from '../lib/types'
 import { totalMassG } from '../lib/types'
-import { RULER_MAX_CM, RULER_MIN_CM, round } from '../lib/physics'
+import { RULER_MAX_CM, RULER_MIN_CM } from '../lib/physics'
 import { Callout } from '../components/ui'
 import { IconTable, IconTrash } from '../components/Icons'
 
@@ -15,6 +14,7 @@ interface Props {
 export default function MeasureStep({ state, dispatch }: Props) {
   const mass = totalMassG(state)
   const [length, setLength] = useState('')
+  const [extension, setExtension] = useState('')
   const [force, setForce] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -23,6 +23,7 @@ export default function MeasureStep({ state, dispatch }: Props) {
   // Changing the load invalidates whatever was half-typed for the old one.
   useEffect(() => {
     setLength('')
+    setExtension('')
     setForce('')
     setError(null)
   }, [mass])
@@ -37,6 +38,7 @@ export default function MeasureStep({ state, dispatch }: Props) {
       return
     }
     const l = Number(length.trim())
+    const x = Number(extension.trim())
     const f = Number(force.trim())
     if (length.trim() === '' || !Number.isFinite(l)) {
       setError('Enter the pointer position you read on the ruler.')
@@ -44,6 +46,10 @@ export default function MeasureStep({ state, dispatch }: Props) {
     }
     if (l < RULER_MIN_CM || l > RULER_MAX_CM) {
       setError(`The ruler only runs from ${RULER_MIN_CM} to ${RULER_MAX_CM} cm.`)
+      return
+    }
+    if (extension.trim() === '' || !Number.isFinite(x)) {
+      setError('Calculate the extension yourself as x = l − l₀.')
       return
     }
     if (force.trim() === '' || !Number.isFinite(f)) {
@@ -57,10 +63,12 @@ export default function MeasureStep({ state, dispatch }: Props) {
         id: `${mass}-${Date.now()}`,
         massG: mass,
         lengthCm: l,
+        extensionCm: x,
         forceN: f,
       },
     })
     setLength('')
+    setExtension('')
     setForce('')
   }
 
@@ -68,9 +76,10 @@ export default function MeasureStep({ state, dispatch }: Props) {
     <div>
       <h2 className="panel-title">Take your measurements</h2>
       <p className="panel-intro">
-        Load the spring, let it settle, read the pointer against the ruler, and
-        write the reading into your table. Take at least six readings over as
-        wide a range of masses as the spring will safely take.
+        Load the spring, let it settle, read the pointer against the ruler,
+        then work out the extension and the force yourself before writing the
+        row into your table. Take at least six readings over as wide a range
+        of masses as the spring will safely take.
       </p>
 
       <div className="panel-section">
@@ -82,7 +91,7 @@ export default function MeasureStep({ state, dispatch }: Props) {
             </span>
           </div>
 
-          <div className="entry-grid">
+          <div className="entry-grid entry-grid-3">
             <div className="field">
               <label className="field-label" htmlFor="reading-l">
                 Pointer position l / cm
@@ -102,8 +111,26 @@ export default function MeasureStep({ state, dispatch }: Props) {
               />
             </div>
             <div className="field">
+              <label className="field-label" htmlFor="reading-x">
+                Extension x = l − l₀ / cm
+              </label>
+              <input
+                id="reading-x"
+                className="input input-numeric"
+                inputMode="decimal"
+                placeholder="0.0"
+                value={extension}
+                disabled={mass === 0}
+                onChange={(e) => {
+                  setExtension(e.target.value)
+                  setError(null)
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && add()}
+              />
+            </div>
+            <div className="field">
               <label className="field-label" htmlFor="reading-f">
-                Force F / N
+                Force F = mg / N
               </label>
               <input
                 id="reading-f"
@@ -125,8 +152,10 @@ export default function MeasureStep({ state, dispatch }: Props) {
             <div className="field-error">{error}</div>
           ) : (
             <div className="field-hint">
-              You calculate the force yourself from the mass. Nothing is checked
-              until you submit.
+              Your recorded l₀ ={' '}
+              {state.zeroReadingCm === null ? '—' : state.zeroReadingCm.toFixed(1)}{' '}
+              cm. Nothing here is checked until you submit — work it out
+              yourself.
             </div>
           )}
 
@@ -169,28 +198,25 @@ export default function MeasureStep({ state, dispatch }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.readings.map((r) => {
-                    const x = studentExtensionCm(r, state.zeroReadingCm)
-                    return (
-                      <tr key={r.id}>
-                        <td>{r.massG}</td>
-                        <td>{r.forceN}</td>
-                        <td>{r.lengthCm.toFixed(1)}</td>
-                        <td>{x === null ? '—' : round(x, 1).toFixed(1)}</td>
-                        <td className="row-actions">
-                          <button
-                            className="icon-btn"
-                            aria-label={`Delete the ${r.massG} g reading`}
-                            onClick={() =>
-                              dispatch({ type: 'deleteReading', id: r.id })
-                            }
-                          >
-                            <IconTrash />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {state.readings.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.massG}</td>
+                      <td>{r.forceN}</td>
+                      <td>{r.lengthCm.toFixed(1)}</td>
+                      <td>{r.extensionCm.toFixed(1)}</td>
+                      <td className="row-actions">
+                        <button
+                          className="icon-btn"
+                          aria-label={`Delete the ${r.massG} g reading`}
+                          onClick={() =>
+                            dispatch({ type: 'deleteReading', id: r.id })
+                          }
+                        >
+                          <IconTrash />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -198,8 +224,8 @@ export default function MeasureStep({ state, dispatch }: Props) {
         </div>
         {state.readings.length > 0 && (
           <div className="table-caption">
-            x is calculated as l − l₀ using your own recorded l₀ ={' '}
-            {state.zeroReadingCm?.toFixed(1)} cm.
+            F and x above are exactly what you entered for each row — nothing
+            is recalculated for you.
           </div>
         )}
       </div>

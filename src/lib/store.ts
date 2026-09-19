@@ -19,7 +19,7 @@ const STORAGE_KEY = 'vsl.hookes-law.v1'
 
 export function createInitialState(): ExperimentState {
   return {
-    stage: 'setup',
+    stage: 'tutorial',
     spring: createSpring(),
     hangerAttached: false,
     slotted: [],
@@ -127,6 +127,28 @@ function reducer(state: ExperimentState, action: Action): ExperimentState {
   }
 }
 
+/**
+ * V1 saved sessions (already live on Vercel) predate the `extensionCm` field
+ * on Reading, and predate the 'tutorial' stage. Backfill both so a returning
+ * student's old localStorage never produces NaN in a graph or gets stuck on
+ * a stage that no longer exists.
+ */
+function migrate(parsed: ExperimentState): ExperimentState {
+  const zero = typeof parsed.zeroReadingCm === 'number' ? parsed.zeroReadingCm : null
+  const readings = Array.isArray(parsed.readings)
+    ? parsed.readings.map((r) => {
+        const derived = zero !== null ? r.lengthCm - zero : 0
+        return {
+          ...r,
+          extensionCm: Number.isFinite(r.extensionCm) ? r.extensionCm : derived,
+        }
+      })
+    : []
+  const validStages: Stage[] = ['tutorial', 'setup', 'measure', 'graph', 'analysis', 'feedback']
+  const stage = validStages.includes(parsed.stage) ? parsed.stage : 'setup'
+  return { ...parsed, stage, readings }
+}
+
 function load(): ExperimentState {
   if (typeof window === 'undefined') return createInitialState()
   try {
@@ -137,7 +159,7 @@ function load(): ExperimentState {
     if (!parsed || typeof parsed !== 'object' || !parsed.spring) {
       return createInitialState()
     }
-    return { ...createInitialState(), ...parsed }
+    return migrate({ ...createInitialState(), ...parsed })
   } catch {
     return createInitialState()
   }
@@ -167,11 +189,12 @@ export function useExperiment() {
 }
 
 /**
- * The extension the student's own data implies for a row: their reading minus
- * their own recorded unloaded reading. If they mis-measured the unloaded
- * length, that error carries through — exactly as it would in a real lab.
+ * The extension that l - l0 arithmetic implies for a row, using the
+ * student's own recorded l0. This is NOT what gets plotted — the student
+ * enters and owns `reading.extensionCm` themselves — this exists only so
+ * feedback can check whether their subtraction was correct.
  */
-export function studentExtensionCm(
+export function impliedExtensionCm(
   reading: Reading,
   zeroReadingCm: number | null,
 ): number | null {

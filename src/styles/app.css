@@ -195,8 +195,34 @@
 .lab-body {
   flex: 1;
   display: grid;
+  /* Narrow-desktop fallback; min-width:901px below picks the real split. */
   grid-template-columns: minmax(0, 1fr) 400px;
   min-height: 0;
+}
+
+/*
+ * The apparatus is the priority while setting up and measuring; the work
+ * panel — instructions, table, graph, analysis, feedback — becomes the
+ * priority once there is data to process and write about. Scoped to
+ * min-width so it never fights the single-column stacking below 900px,
+ * which has to win outright on a phone or an iPad in portrait.
+ */
+@media (min-width: 901px) {
+  .lab-body[data-focus='bench'] {
+    grid-template-columns: minmax(0, 1.5fr) minmax(400px, 1fr);
+  }
+  .lab-body[data-focus='notebook'] {
+    grid-template-columns: minmax(0, 0.8fr) minmax(480px, 1.4fr);
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .lab-body[data-focus='bench'] {
+    grid-template-columns: minmax(0, 1.4fr) minmax(340px, 1fr);
+  }
+  .lab-body[data-focus='notebook'] {
+    grid-template-columns: minmax(0, 0.9fr) minmax(380px, 1.2fr);
+  }
 }
 
 .bench {
@@ -452,23 +478,23 @@
 }
 
 .panel-title {
-  font-size: 17px;
-  letter-spacing: -0.021em;
+  font-size: 19px;
+  letter-spacing: -0.022em;
 }
 
 .panel-intro {
   margin-top: var(--s-2);
-  font-size: 13.5px;
-  line-height: 1.6;
+  font-size: 14.5px;
+  line-height: 1.65;
   color: var(--ink-500);
 }
 
 .panel-section {
-  margin-top: var(--s-6);
+  margin-top: var(--s-7, 28px);
 }
 
 .panel-section + .panel-section {
-  margin-top: var(--s-6);
+  margin-top: var(--s-7, 28px);
 }
 
 .notebook-foot {
@@ -594,18 +620,18 @@
 table.data {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 
 table.data th {
   text-align: right;
   font-weight: 600;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ink-500);
   background: var(--surface-sunken);
   border-bottom: 1px solid var(--line);
-  padding: 8px 10px;
+  padding: 10px 12px;
   white-space: nowrap;
 }
 
@@ -622,7 +648,7 @@ table.data td:last-child {
 
 table.data td {
   text-align: right;
-  padding: 7px 10px;
+  padding: 9px 12px;
   border-bottom: 1px solid var(--line);
   color: var(--ink-900);
 }
@@ -703,6 +729,16 @@ table.data tbody tr:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--s-3);
+}
+
+.entry-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 560px) {
+  .entry-grid-3 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .entry-mass {
@@ -860,14 +896,6 @@ table.data tbody tr:hover {
   color: var(--poor);
 }
 
-.feedback-skill {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-300);
-}
-
 .feedback-title {
   font-size: 13.5px;
   font-weight: 600;
@@ -879,6 +907,179 @@ table.data tbody tr:hover {
   margin-top: 3px;
   font-size: 12.5px;
   line-height: 1.55;
+  color: var(--ink-500);
+}
+
+/* --------------------------------------------------------- did-well list */
+.did-well-list {
+  list-style: none;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.did-well-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--ink-700);
+  background: var(--good-soft);
+  border: 1px solid #c6e5d6;
+  border-radius: var(--r-md);
+  padding: 9px 12px;
+}
+
+/* --------------------------------------------------- categorised report */
+.category-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  margin-top: var(--s-3);
+}
+
+.category-group-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin-bottom: var(--s-2);
+}
+
+/* -------------------------------------------------------- worked solution */
+.worked-steps {
+  list-style: none;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  counter-reset: none;
+}
+
+.worked-step {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: var(--s-4);
+}
+
+.worked-step-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  color: var(--ink-900);
+  margin-bottom: var(--s-3);
+}
+
+.worked-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.eq {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-700);
+}
+
+.eq-result {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.worked-note {
+  margin-top: var(--s-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border: 1px solid #f0dcb4;
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}
+
+.worked-example-text {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink-700);
+  font-style: italic;
+  margin: 0;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-3);
+}
+
+.compare-cell {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+  padding: 9px 11px;
+  text-align: center;
+}
+
+.compare-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-top: 3px;
+  color: var(--ink-900);
+}
+
+@media (max-width: 560px) {
+  .compare-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------- tutorial */
+.tutorial-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.tutorial-step {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+}
+
+.tutorial-step-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+}
+
+.tutorial-step-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+}
+
+.tutorial-step-detail {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--ink-500);
 }
 
@@ -973,12 +1174,6 @@ table.data tbody tr:hover {
 }
 
 /* ============================================================ responsive */
-@media (max-width: 1180px) {
-  .lab-body {
-    grid-template-columns: minmax(0, 1fr) 360px;
-  }
-}
-
 /* Tablet portrait and below: stack the bench above the notebook. */
 @media (max-width: 900px) {
   .lab {

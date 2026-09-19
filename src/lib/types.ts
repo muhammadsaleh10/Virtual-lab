@@ -1,6 +1,11 @@
 import { HANGER_MASS_G, type Spring } from './physics'
 
-export type Stage = 'setup' | 'measure' | 'graph' | 'analysis' | 'feedback'
+/**
+ * 'tutorial' is a one-time onboarding pre-stage: it is deliberately not in
+ * STAGES below, so it never appears in the stepper and never counts as a
+ * step the student can jump back to.
+ */
+export type Stage = 'tutorial' | 'setup' | 'measure' | 'graph' | 'analysis' | 'feedback'
 
 export const STAGES: { id: Stage; label: string }[] = [
   { id: 'setup', label: 'Setup' },
@@ -17,6 +22,8 @@ export interface Reading {
   massG: number
   /** Ruler reading the student says they saw, in cm. Their own measurement. */
   lengthCm: number
+  /** Extension the student calculated as x = l - l0. Their own arithmetic. */
+  extensionCm: number
   /** Force the student calculated, in N. Their own calculation. */
   forceN: number
 }

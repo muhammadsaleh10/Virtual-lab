@@ -8,7 +8,7 @@ import {
   round,
 } from './physics'
 import type { ExperimentState } from './types'
-import { studentExtensionCm } from './store'
+import { impliedExtensionCm } from './store'
 
 export type Verdict = 'good' | 'warn' | 'poor'
 
@@ -29,6 +29,15 @@ export interface FeedbackReport {
   trueSpringConstant: number
   studentK: number | null
   bestFitGradient: number | null
+  /**
+   * The single, canonical percentage difference between the student's k and
+   * the true k — computed once, here, from the unrounded true value. Every
+   * place in the UI that shows this percentage must use this field rather
+   * than recomputing it (recomputing from the rounded `trueSpringConstant`
+   * previously produced a displayed percentage that could silently disagree
+   * with the one actually used to grade the answer).
+   */
+  kPercentDiff: number | null
 }
 
 const MAX_POINTS = 100
@@ -66,7 +75,7 @@ export function assess(state: ExperimentState): FeedbackReport {
     score += 15
     items.push({
       id: 'count',
-      skill: 'Range and quantity of data',
+      skill: 'Range & quality of data',
       verdict: 'good',
       title: `${rows.length} readings recorded`,
       detail:
@@ -76,7 +85,7 @@ export function assess(state: ExperimentState): FeedbackReport {
     score += 8
     items.push({
       id: 'count',
-      skill: 'Range and quantity of data',
+      skill: 'Range & quality of data',
       verdict: 'warn',
       title: `Only ${rows.length} readings recorded`,
       detail:
@@ -85,7 +94,7 @@ export function assess(state: ExperimentState): FeedbackReport {
   } else {
     items.push({
       id: 'count',
-      skill: 'Range and quantity of data',
+      skill: 'Range & quality of data',
       verdict: 'poor',
       title: `Too few readings (${rows.length})`,
       detail:
@@ -101,7 +110,7 @@ export function assess(state: ExperimentState): FeedbackReport {
       score += 10
       items.push({
         id: 'range',
-        skill: 'Range and quantity of data',
+        skill: 'Range & quality of data',
         verdict: 'good',
         title: `Good range of masses (${span} g)`,
         detail:
@@ -111,7 +120,7 @@ export function assess(state: ExperimentState): FeedbackReport {
       score += 4
       items.push({
         id: 'range',
-        skill: 'Range and quantity of data',
+        skill: 'Range & quality of data',
         verdict: 'warn',
         title: `Narrow range of masses (${span} g)`,
         detail:
@@ -120,7 +129,7 @@ export function assess(state: ExperimentState): FeedbackReport {
     }
   }
 
-  // 3. Accuracy of the ruler readings (max 20)
+  // 3. Accuracy of the ruler readings (max 16)
   if (rows.length > 0) {
     const errors = rows.map((r) => {
       const expected =
@@ -132,7 +141,7 @@ export function assess(state: ExperimentState): FeedbackReport {
     const badRows = rows.filter((_, i) => errors[i] > 0.25)
 
     if (worst <= 0.15) {
-      score += 20
+      score += 16
       items.push({
         id: 'accuracy',
         skill: 'Measurement technique',
@@ -141,7 +150,7 @@ export function assess(state: ExperimentState): FeedbackReport {
         detail: `Every reading is within 1.5 mm of the true value (mean error ${round(mean * 10, 1)} mm). That is careful work — you clearly read the scale at eye level against the pointer.`,
       })
     } else if (worst <= 0.35) {
-      score += 12
+      score += 10
       items.push({
         id: 'accuracy',
         skill: 'Measurement technique',
@@ -150,7 +159,7 @@ export function assess(state: ExperimentState): FeedbackReport {
         detail: `Your largest error is ${round(worst * 10, 1)} mm. Read the millimetre scale at the exact level of the pointer and record to the nearest 0.1 cm — use the magnifier if the pointer sits between two marks.`,
       })
     } else {
-      score += 4
+      score += 3
       items.push({
         id: 'accuracy',
         skill: 'Measurement technique',
@@ -196,17 +205,17 @@ export function assess(state: ExperimentState): FeedbackReport {
     })
   }
 
-  // 5. Force calculations (max 10)
+  // 5. Force calculations (max 8)
   if (rows.length > 0) {
     const wrong = rows.filter(
       (r) => percentDiff(r.forceN, forceFromMassG(r.massG)) > 2,
     )
     const looksLikeGrams = rows.filter((r) => r.forceN > 50).length
     if (wrong.length === 0) {
-      score += 10
+      score += 8
       items.push({
         id: 'force',
-        skill: 'Processing data',
+        skill: 'Data processing',
         verdict: 'good',
         title: 'Weights calculated correctly',
         detail:
@@ -215,17 +224,17 @@ export function assess(state: ExperimentState): FeedbackReport {
     } else if (looksLikeGrams > 0) {
       items.push({
         id: 'force',
-        skill: 'Processing data',
+        skill: 'Data processing',
         verdict: 'poor',
         title: 'Masses not converted to kilograms',
         detail:
           'Some of your force values are far too large. W = mg needs the mass in kilograms, so 200 g must become 0.200 kg, giving about 1.96 N — not 1962 N.',
       })
     } else {
-      score += 4
+      score += 3
       items.push({
         id: 'force',
-        skill: 'Processing data',
+        skill: 'Data processing',
         verdict: 'warn',
         title: `${wrong.length} force value${wrong.length === 1 ? '' : 's'} incorrect`,
         detail:
@@ -234,27 +243,66 @@ export function assess(state: ExperimentState): FeedbackReport {
     }
   }
 
-  // --------------------------------------------------------------- the graph
-  // 6. Line of best fit (max 15)
-  const dataPoints = rows
-    .map((r) => {
-      const x = studentExtensionCm(r, state.zeroReadingCm)
-      return x === null ? null : { x, y: r.forceN }
+  // 5b. Extension calculations, x = l - l0 (max 8)
+  if (rows.length > 0 && state.zeroReadingCm !== null) {
+    const wrongExtension = rows.filter((r) => {
+      const implied = impliedExtensionCm(r, state.zeroReadingCm)
+      return implied !== null && Math.abs(r.extensionCm - implied) > 0.15
     })
-    .filter((p): p is { x: number; y: number } => p !== null)
+    if (wrongExtension.length === 0) {
+      score += 8
+      items.push({
+        id: 'extension',
+        skill: 'Data processing',
+        verdict: 'good',
+        title: 'Extensions calculated correctly',
+        detail:
+          'Every row correctly subtracts your unloaded reading l₀ from the loaded reading l, giving x = l − l₀.',
+      })
+    } else if (wrongExtension.length < rows.length) {
+      score += 3
+      items.push({
+        id: 'extension',
+        skill: 'Data processing',
+        verdict: 'warn',
+        title: `${wrongExtension.length} extension value${wrongExtension.length === 1 ? '' : 's'} incorrect`,
+        detail: `x = l − l₀. Recheck the highlighted row${wrongExtension.length === 1 ? '' : 's'} against your recorded l₀ = ${state.zeroReadingCm.toFixed(1)} cm.`,
+      })
+    } else {
+      items.push({
+        id: 'extension',
+        skill: 'Data processing',
+        verdict: 'poor',
+        title: 'Extensions do not match x = l − l₀',
+        detail: `None of your extension values match l − l₀ using your own l₀ = ${state.zeroReadingCm.toFixed(1)} cm. Extension is the loaded reading minus the unloaded reading, not the loaded reading itself.`,
+      })
+    }
+  }
+
+  // --------------------------------------------------------------- the graph
+  // 6. Line of best fit (max 13)
+  // x is the student's own entered extension — the same value that ends up
+  // plotted on their graph — not a value recomputed on their behalf.
+  const dataPoints = rows
+    .filter((r) => Number.isFinite(r.extensionCm))
+    .map((r) => ({ x: r.extensionCm, y: r.forceN }))
 
   const fit = leastSquares(dataPoints)
   let bestFitGradient: number | null = null
 
   if (state.bestFit && state.bestFit.touched) {
     const { x1, y1, x2, y2 } = state.bestFit
-    bestFitGradient = x2 - x1 === 0 ? null : (y2 - y1) / (x2 - x1)
+    // An epsilon rather than an exact-zero check: two dragged handles can
+    // land a hair's-breadth apart in floating point without the student
+    // intending a vertical line, and that must not surface as a huge or
+    // infinite gradient anywhere in the UI.
+    bestFitGradient = Math.abs(x2 - x1) < 1e-6 ? null : (y2 - y1) / (x2 - x1)
   }
 
   if (bestFitGradient !== null && fit) {
     const diff = percentDiff(bestFitGradient, fit.gradient)
     if (diff <= 5) {
-      score += 15
+      score += 13
       items.push({
         id: 'bestfit',
         skill: 'Graph work',
@@ -264,7 +312,7 @@ export function assess(state: ExperimentState): FeedbackReport {
           'Your line passes through the middle of your points with a balanced scatter either side, so its gradient genuinely represents your data.',
       })
     } else if (diff <= 15) {
-      score += 8
+      score += 7
       items.push({
         id: 'bestfit',
         skill: 'Graph work',
@@ -329,13 +377,15 @@ export function assess(state: ExperimentState): FeedbackReport {
   // ------------------------------------------------------------- the analysis
   // 8. Spring constant value (max 15)
   const studentK = num(state.answers.springConstant)
+  let kPercentDiff: number | null = null
   if (studentK !== null) {
     const diff = percentDiff(studentK, trueK)
+    kPercentDiff = diff
     if (diff <= 5) {
       score += 15
       items.push({
         id: 'k-value',
-        skill: 'Conclusion',
+        skill: 'Analysis & units',
         verdict: 'good',
         title: `Spring constant accurate (within ${round(diff, 1)}%)`,
         detail: `You obtained ${studentK} N m⁻¹ against a true value of ${round(trueK, 2)} N m⁻¹. That is an excellent experimental result.`,
@@ -344,7 +394,7 @@ export function assess(state: ExperimentState): FeedbackReport {
       score += 9
       items.push({
         id: 'k-value',
-        skill: 'Conclusion',
+        skill: 'Analysis & units',
         verdict: 'warn',
         title: `Spring constant ${round(diff, 1)}% from the true value`,
         detail: `You obtained ${studentK} N m⁻¹; the spring's true constant was ${round(trueK, 2)} N m⁻¹. Close, but the gap is bigger than your reading uncertainty explains — check your line of best fit and your gradient arithmetic.`,
@@ -354,7 +404,7 @@ export function assess(state: ExperimentState): FeedbackReport {
       resultIsWrong = true
       items.push({
         id: 'k-value',
-        skill: 'Conclusion',
+        skill: 'Analysis & units',
         verdict: 'poor',
         title: 'Centimetres never converted to metres',
         detail: `Your value is almost exactly 100 times too small. Your x-axis is in centimetres, so your gradient is in N cm⁻¹ — multiply by 100 to get N m⁻¹. The true value was ${round(trueK, 2)} N m⁻¹.`,
@@ -363,7 +413,7 @@ export function assess(state: ExperimentState): FeedbackReport {
       resultIsWrong = true
       items.push({
         id: 'k-value',
-        skill: 'Conclusion',
+        skill: 'Analysis & units',
         verdict: 'poor',
         title: 'Spring constant is well off',
         detail: `You gave ${studentK}, but the spring's true constant was ${round(trueK, 2)} N m⁻¹. Work back through the gradient calculation step by step.`,
@@ -373,7 +423,7 @@ export function assess(state: ExperimentState): FeedbackReport {
     resultIsWrong = true
     items.push({
       id: 'k-value',
-      skill: 'Conclusion',
+      skill: 'Analysis & units',
       verdict: 'poor',
       title: 'No spring constant given',
       detail: 'The whole point of the experiment is to produce this number.',
@@ -387,7 +437,7 @@ export function assess(state: ExperimentState): FeedbackReport {
     score += 5
     items.push({
       id: 'units',
-      skill: 'Units',
+      skill: 'Analysis & units',
       verdict: 'good',
       title: 'Units correct',
       detail:
@@ -397,7 +447,7 @@ export function assess(state: ExperimentState): FeedbackReport {
     score += 2
     items.push({
       id: 'units',
-      skill: 'Units',
+      skill: 'Analysis & units',
       verdict: 'warn',
       title: 'One unit is wrong',
       detail: `Your graph plots force (N) against extension (cm), so the gradient is in N cm⁻¹${gradientUnitOk ? '' : ' — not what you selected'}. The spring constant itself should be quoted in N m⁻¹${kUnitOk ? '' : ', which is not what you selected'}.`,
@@ -405,7 +455,7 @@ export function assess(state: ExperimentState): FeedbackReport {
   } else {
     items.push({
       id: 'units',
-      skill: 'Units',
+      skill: 'Analysis & units',
       verdict: 'poor',
       title: 'Units incorrect',
       detail:
@@ -423,7 +473,7 @@ export function assess(state: ExperimentState): FeedbackReport {
   if (overloaded.length > 0) {
     items.push({
       id: 'elastic',
-      skill: 'Experimental awareness',
+      skill: 'Analysis & units',
       verdict: mentionsLimit ? 'good' : 'warn',
       title: mentionsLimit
         ? 'You spotted that the spring was overstretched'
@@ -512,5 +562,6 @@ export function assess(state: ExperimentState): FeedbackReport {
     trueSpringConstant: round(trueK, 2),
     studentK,
     bestFitGradient,
+    kPercentDiff,
   }
 }

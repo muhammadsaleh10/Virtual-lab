@@ -46,7 +46,7 @@ export default function AnalysisStep({ state, dispatch }: Props) {
             bestFit={state.bestFit}
             onBestFitChange={(bestFit) => dispatch({ type: 'setBestFit', bestFit })}
             showConstruction
-            height={280}
+            height={360}
           />
         </div>
 
