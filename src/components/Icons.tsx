@@ -95,3 +95,17 @@ export const IconMagnifier = ({ size = 15 }: IconProps) => (
     <path d="M12.6 12.6 16.6 16.6" />
   </svg>
 )
+
+export const IconCube = ({ size = 15 }: IconProps) => (
+  <svg {...base(size)} aria-hidden="true">
+    <path d="M10 2.5 17 6.5v7L10 17.5 3 13.5v-7Z" />
+    <path d="M3 6.5 10 10.5l7-4M10 10.5v7" />
+  </svg>
+)
+
+export const IconFlask = ({ size = 20 }: IconProps) => (
+  <svg {...base(size)} aria-hidden="true">
+    <path d="M8 3h4M8.6 3v5l-4.4 7.6A1.6 1.6 0 0 0 5.6 18h8.8a1.6 1.6 0 0 0 1.4-2.4L11.4 8V3" />
+    <path d="M6.6 13h6.8" />
+  </svg>
+)

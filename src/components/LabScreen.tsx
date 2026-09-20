@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import Apparatus from './Apparatus'
 import TutorialStep from '../steps/TutorialStep'
 import SetupStep from '../steps/SetupStep'
@@ -10,6 +10,7 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconCheck,
+  IconCube,
   IconMagnifier,
   IconMinus,
   IconPlus,
@@ -19,6 +20,10 @@ import {
 import type { Action } from '../lib/store'
 import { STAGES, totalMassG, type ExperimentState, type Stage } from '../lib/types'
 import { HANGER_MASS_G, MAX_TOTAL_MASS_G, SLOTTED_MASSES_G } from '../lib/physics'
+
+// Three.js only loads when the 3D bench is actually shown, so the landing,
+// physics and chemistry pages never pay for it.
+const Apparatus3D = lazy(() => import('../three/Apparatus3D'))
 
 interface Props {
   state: ExperimentState
@@ -64,6 +69,9 @@ function canEnter(state: ExperimentState, stage: Stage): boolean {
 export default function LabScreen({ state, dispatch, onReset, onExit }: Props) {
   const [showMagnifier, setShowMagnifier] = useState(true)
   const [confirmReset, setConfirmReset] = useState(false)
+  // The 3D bench is the default experience; 2D stays available as an
+  // instant fallback in case the new view needs to be turned off.
+  const [view3D, setView3D] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const mass = totalMassG(state)
@@ -128,7 +136,7 @@ export default function LabScreen({ state, dispatch, onReset, onExit }: Props) {
     <div className="lab">
       <header className="topbar">
         <div className="topbar-left">
-          <button className="btn btn-ghost" onClick={onExit} aria-label="Back to home">
+          <button className="btn btn-ghost" onClick={onExit} aria-label="Back to Physics practicals">
             <IconArrowLeft />
           </button>
           <span className="topbar-title">Hooke&rsquo;s Law</span>
@@ -170,12 +178,26 @@ export default function LabScreen({ state, dispatch, onReset, onExit }: Props) {
           )}
 
           <div className="bench-stage">
-            <Apparatus
-              spring={state.spring}
-              hangerAttached={state.hangerAttached}
-              slotted={state.slotted}
-              showMagnifier={showMagnifier}
-            />
+            {view3D ? (
+              <Suspense fallback={<div className="bench-3d-loading">Loading 3D bench…</div>}>
+                <Apparatus3D
+                  spring={state.spring}
+                  hangerAttached={state.hangerAttached}
+                  slotted={state.slotted}
+                  onToggleHanger={() =>
+                    dispatch({ type: state.hangerAttached ? 'removeHanger' : 'attachHanger' })
+                  }
+                  onAddMass={(grams) => dispatch({ type: 'addMass', grams })}
+                />
+              </Suspense>
+            ) : (
+              <Apparatus
+                spring={state.spring}
+                hangerAttached={state.hangerAttached}
+                slotted={state.slotted}
+                showMagnifier={showMagnifier}
+              />
+            )}
           </div>
 
           <div className="bench-controls">
@@ -228,13 +250,24 @@ export default function LabScreen({ state, dispatch, onReset, onExit }: Props) {
 
             <div className="bench-controls-spacer" />
 
+            {!view3D && (
+              <button
+                className="btn btn-ghost"
+                onClick={() => setShowMagnifier((v) => !v)}
+                aria-pressed={showMagnifier}
+              >
+                <IconMagnifier />
+                {showMagnifier ? 'Hide magnifier' : 'Show magnifier'}
+              </button>
+            )}
+
             <button
               className="btn btn-ghost"
-              onClick={() => setShowMagnifier((v) => !v)}
-              aria-pressed={showMagnifier}
+              onClick={() => setView3D((v) => !v)}
+              aria-pressed={view3D}
             >
-              <IconMagnifier />
-              {showMagnifier ? 'Hide magnifier' : 'Show magnifier'}
+              <IconCube />
+              {view3D ? 'Switch to 2D view' : 'Switch to 3D view'}
             </button>
           </div>
         </section>

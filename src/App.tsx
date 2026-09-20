@@ -1,48 +1,52 @@
-import { useEffect, useState } from 'react'
-import Landing from './components/Landing'
+import { useEffect } from 'react'
+import HomePage from './components/HomePage'
+import PhysicsPage from './components/PhysicsPage'
+import ChemistryPage from './components/ChemistryPage'
 import LabScreen from './components/LabScreen'
+import { navigate, useRoute } from './hooks/useRoute'
 import { useExperiment } from './lib/store'
 
-const STARTED_KEY = 'vsl.started.v1'
-
-function readStarted(): boolean {
-  try {
-    return window.localStorage.getItem(STARTED_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
 export default function App() {
+  const route = useRoute()
   const { state, dispatch, reset } = useExperiment()
-  const [started, setStarted] = useState(readStarted)
 
+  // Each navigation is a fresh page as far as scroll position is concerned.
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STARTED_KEY, started ? '1' : '0')
-    } catch {
-      /* ignore */
-    }
-  }, [started])
+    window.scrollTo(0, 0)
+  }, [route.name])
 
-  const hasSavedProgress =
-    state.zeroReadingCm !== null || state.readings.length > 0
+  const hasSavedProgress = state.zeroReadingCm !== null || state.readings.length > 0
 
-  if (!started) {
-    return (
-      <Landing
-        onStart={() => setStarted(true)}
-        hasSavedProgress={hasSavedProgress}
-      />
-    )
+  switch (route.name) {
+    case 'physics':
+      return (
+        <PhysicsPage
+          hasSavedProgress={hasSavedProgress}
+          onOpenHookesLaw={() => navigate('/physics/hookes-law')}
+          onBack={() => navigate('/')}
+        />
+      )
+
+    case 'chemistry':
+      return <ChemistryPage onBack={() => navigate('/')} />
+
+    case 'hookes-law':
+      return (
+        <LabScreen
+          state={state}
+          dispatch={dispatch}
+          onReset={reset}
+          onExit={() => navigate('/physics')}
+        />
+      )
+
+    case 'home':
+    default:
+      return (
+        <HomePage
+          onOpenPhysics={() => navigate('/physics')}
+          onOpenChemistry={() => navigate('/chemistry')}
+        />
+      )
   }
-
-  return (
-    <LabScreen
-      state={state}
-      dispatch={dispatch}
-      onReset={reset}
-      onExit={() => setStarted(false)}
-    />
-  )
 }
